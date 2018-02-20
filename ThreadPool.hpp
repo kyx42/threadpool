@@ -5,76 +5,54 @@
 #pragma once
 
 #include <mutex>
-#include <condition_variable>
 #include <functional>
+#include <condition_variable>
 #include <deque>
 #include <thread>
-#include <map>
 #include <iostream>
 #include <tuple>
 
-template<typename ... T>
-class Answer {
-public:
-    explicit Answer(std::string const &s, std::tuple<T ...> const &);
+typedef std::function<void(void)> Func;
 
-    Answer() = default;
-
-    std::string const &getString();
-
-    std::tuple<T ...> const &getParam();
-
-private:
-    std::string _s;
-    std::tuple<T ...> _obj;
-};
-
-template<typename ... T>
 class Worker;
 
-template<typename ... T>
 class ThreadPool {
 public:
 
-    explicit ThreadPool() = default;
+    explicit ThreadPool();
 
     ~ThreadPool();
 
-    void Start(const unsigned int, std::map<std::string, std::function<void(T ...)>> const &t);
+    void Start(unsigned int);
 
-    void addTask(std::string const &, T ...);
+    void addTask(Func const &task);
 
     bool getStatus() const;
 
-    std::shared_ptr<Answer<T ...>> getTask(void);
+    std::shared_ptr<Func> getTask();
 
-    std::mutex &getMutex(void);
+    std::mutex &getMutex();
 
     void threadLoop();
 
-    bool empty(void) const;
+    bool empty() const;
 
     void wait(std::unique_lock<std::mutex> &lock);
 
 private:
-    std::deque<std::shared_ptr<Answer<T ...>>> _Queue;
-    std::map<std::string, std::function<void(T ...)>> _t;
+    std::deque<std::shared_ptr<Func>> _Queue;
     std::condition_variable _cdtVar;
     std::mutex _mutexQ;
     std::deque<std::thread> _workers;
     bool _stop;
 };
 
-template<typename ... T>
 class Worker {
 public:
-    Worker(ThreadPool<T...> const &tp);
+    explicit Worker(ThreadPool const &tp);
 
-    ~Worker();
+    ~Worker() = default;
 
 private:
-    ThreadPool<T...> &_pool;
+    const ThreadPool &_pool;
 };
-
-template class ThreadPool<int, int>;
-template class ThreadPool<int, char>;

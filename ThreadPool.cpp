@@ -4,28 +4,9 @@
 
 #include "ThreadPool.hpp"
 
-template <typename ... T>
-Answer<T ...>::Answer(std::string const &s, std::tuple<T ...> const & obj) {
-    _s = s;
-    _obj = obj;
-}
-
-template <typename ... T>
-std::string const &Answer<T ...>::getString()
-{
-    return _s;
-}
-
-template <typename ... T>
-std::tuple<T...> const &Answer<T ...>::getParam()
-{
-    return _obj;
-}
-
-template <typename ... T>
-void		ThreadPool<T ...>::threadLoop() {
+void		ThreadPool::threadLoop() {
     std::mutex &mutex = getMutex();
-    std::shared_ptr<Answer<T ...>> t;
+    std::shared_ptr<Func> t;
     _stop = false;
 
     while (42) {
@@ -37,20 +18,17 @@ void		ThreadPool<T ...>::threadLoop() {
                 break;
             t = getTask();
         }
-        std::apply(_t[t->getString()], t->getParam());
+        (*t)();
     }
 }
 
-template <typename ... T>
-void ThreadPool<T ...>::Start(const unsigned int nb, std::map<std::string, std::function<void(T ...)>> const &t) {
+void ThreadPool::Start(const unsigned int nb) {
     _stop = false;
     for (unsigned int i = 0; i < nb; ++i)
-        _workers.emplace_back(std::thread([&]() { ThreadPool<T ...>::threadLoop(); }));
-    _t = t;
+        _workers.emplace_back(std::thread([&]() { ThreadPool::threadLoop(); }));
 }
 
-template <typename ... T>
-ThreadPool<T ...>::~ThreadPool()
+ThreadPool::~ThreadPool()
 {
     _stop = true;
     _cdtVar.notify_all();
@@ -58,50 +36,41 @@ ThreadPool<T ...>::~ThreadPool()
         i.join();
 }
 
-template <typename ... T>
-bool ThreadPool<T ...>::getStatus() const {
+bool ThreadPool::getStatus() const {
     return _stop;
 }
 
-template<typename ... T>
-void ThreadPool<T ...>::addTask(std::string const &s, T... p) {
+void ThreadPool::addTask(Func const &task) {
     {
-        std::tuple<T ...> args = std::tuple<T...>(p...);
         std::unique_lock<std::mutex> lock(_mutexQ);
-        _Queue.push_back(std::make_shared<Answer<T...>>(s, args));
+        _Queue.push_back(std::make_shared<Func>(task));
     }
     _cdtVar.notify_one();
 }
 
-template<typename ... T>
-Worker<T ...>::Worker(ThreadPool<T ...> const &tp) : _pool(tp)  {
+Worker::Worker(ThreadPool const &tp) : _pool(tp)  {
 }
 
-template <typename ... T>
-Worker<T ...>::~Worker() {}
-
-template<typename ... T>
-std::shared_ptr<Answer<T ...>>	 	ThreadPool<T...>::getTask(void) {
-    std::shared_ptr<Answer<T ...>> a = this->_Queue.front();
+std::shared_ptr<Func> ThreadPool::getTask() {
+    std::shared_ptr<Func> a = this->_Queue.front();
     this->_Queue.pop_front();
     return (a);
 }
 
-template <typename ... T>
-bool ThreadPool<T ...>::empty(void) const
-
+bool ThreadPool::empty() const
 {
     return (this->_Queue.empty());
 }
 
-template <typename ... T>
-void ThreadPool<T ...>::wait(std::unique_lock<std::mutex> &lock)
+void ThreadPool::wait(std::unique_lock<std::mutex> &lock)
 {
     this->_cdtVar.wait(lock);
 }
 
-template <typename ... T>
-std::mutex &ThreadPool<T ...>::getMutex(void)
+std::mutex &ThreadPool::getMutex()
 {
     return (this->_mutexQ);
+}
+
+ThreadPool::ThreadPool() : _stop(true) {
 }
